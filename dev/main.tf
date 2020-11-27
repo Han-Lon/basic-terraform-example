@@ -76,15 +76,15 @@ resource "aws_security_group" "allow-my-ip" {
   description = "Allow inbound traffic from my public IPv4 address"
   vpc_id = module.vpc.vpc_id
 
-  ingress = {
+  ingress {
     description = "All traffic from my public IP"
     from_port = 0
     to_port = 0
     protocol = "-1"
-    cidr_blocks = [chomp(data.http.myip.body)]
+    cidr_blocks = ["${chomp(data.http.myip.body)}/32"]
   }
 
-  egress = {
+  egress {
     description = "Allow outbound traffic"
     to_port = 0
     from_port = 0
