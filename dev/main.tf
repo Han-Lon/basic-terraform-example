@@ -51,7 +51,7 @@ module "vpc" {
   cidr = var.vpc_cidr
 
   # Launch in AZs a and b of the target region
-  azs = ["${var.region}a, ${var.region}b"]
+  azs = ["${var.region}a", "${var.region}b"]
   private_subnets = var.private_subnet_ips
   public_subnets = var.public_subnet_ips
 
@@ -61,6 +61,35 @@ module "vpc" {
 
   tags = {
     Environment = var.environment
+  }
+}
+
+# Get my IP address for the security group on the VPC. Appropriate for this exercise, but I would
+# use a different method in an actual enterprise project (i.e. use a known list of IPs)
+data "http" "myip" {
+  url = "http://ipv4.icanhazip.com"
+}
+
+# This security group ONLY allows my public IPv4 address, grabbed from above data block
+resource "aws_security_group" "allow-my-ip" {
+  name = "allow-my-ip"
+  description = "Allow inbound traffic from my public IPv4 address"
+  vpc_id = module.vpc.vpc_id
+
+  ingress = {
+    description = "All traffic from my public IP"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = [chomp(data.http.myip.body)]
+  }
+
+  egress = {
+    description = "Allow outbound traffic"
+    to_port = 0
+    from_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -146,7 +175,7 @@ module "alb" {
 
   # VPC/Networking setup
   vpc_id = module.vpc.vpc_id
-  subnets = [module.vpc.private_subnets[0]]
+  subnets = module.vpc.private_subnets
   security_groups = [module.vpc.default_security_group_id]
 
   # Target group to direct traffic
