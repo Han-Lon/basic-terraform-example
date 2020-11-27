@@ -30,3 +30,6 @@ override.tf.json
 
 # Remove Pycharm .idea/ directory
 .idea/
+
+terraform-basic-example
+terraform-basic-example.pub
