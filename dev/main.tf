@@ -1,3 +1,4 @@
+#--- VARIABLES
 variable "account_id" {
     type = string
     description = "The account ID of the AWS account to deploy resources into"
@@ -36,6 +37,8 @@ terraform {
   }
 }
 
+#--- RESOURCES + MODULES
+
 # Workaround for an issue with the Terraform AWS VPC module. Refer to the below link for background
 # https://github.com/hashicorp/terraform-provider-aws/issues/9989#issuecomment-548387810
 provider "aws" {
@@ -51,16 +54,103 @@ module "vpc" {
   cidr = var.vpc_cidr
 
   # Launch in AZs a and b of the target region
-  azs = ["${var.region}a, ${var.region}b"]
+  azs = ["${var.region}a", "${var.region}b"]
   private_subnets = var.private_subnet_ips
   public_subnets = var.public_subnet_ips
 
-  # Don't enable the NAT or VPN gateways
-  enable_nat_gateway = false
+  # Need to spin up the NAT and Internet Gateways for the instance(s) in the private subnets
   enable_vpn_gateway = false
+  enable_nat_gateway = true
+  create_igw = true
 
   tags = {
     Environment = var.environment
+  }
+}
+
+# The security group attached specifically to the load balancer and public EC2 instance
+resource "aws_security_group" "load-balancer-sg" {
+  name = "load-balancer-sg"
+  description = "The security group attached to the load balancer"
+  vpc_id = module.vpc.vpc_id
+
+  ingress {
+    description = "All HTTP traffic"
+    from_port = 80
+    to_port = 80
+    protocol = "TCP"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow outbound traffic"
+    to_port = 0
+    from_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Get my IP address for the security group on the public instance. Appropriate for this exercise, but I would
+# use a different method in an actual enterprise project (i.e. use a known list of IPs)
+data "http" "myip" {
+  url = "http://ipv4.icanhazip.com"
+}
+
+# The security group on the public instance. Only allows traffic from my public IP (see above data.http block)
+resource "aws_security_group" "public-instance-sg" {
+  name = "public-instance-sg"
+  description = "For the public instance"
+  vpc_id = module.vpc.vpc_id
+
+  ingress {
+    description = "All traffic from my IP address"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["${chomp(data.http.myip.body)}/32"]
+  }
+
+  egress {
+    description = "All traffic outbound"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# This security group ONLY allows the load balancer security group. Attached to the EC2 instance in the private subnet
+resource "aws_security_group" "private-instance-sg" {
+  name = "private-instance-sg"
+  description = "Only allow inbound traffic from the LB security group"
+  vpc_id = module.vpc.vpc_id
+
+  ingress {
+    description = "HTTP traffic from load-balancer-sg"
+    from_port = 80
+    to_port = 80
+    protocol = "TCP"
+    # Allowing traffic based on security group ID, which is needed for public ALBs
+    security_groups = [aws_security_group.load-balancer-sg.id]
+
+  }
+  ingress {
+    description = "All traffic from the other PRIVATE instances/IPs (for troubleshooting)"
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    # Allowing traffic based on security group ID and internal IPs, which is needed for public ALBs
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  egress {
+    description = "Allow outbound traffic"
+    to_port = 0
+    from_port = 0
+    protocol = "-1"
+    security_groups = [aws_security_group.load-balancer-sg.id]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -102,8 +192,8 @@ module "ec2-1" {
 
   # Don't enable enhanced monitoring
   monitoring = false
-  # Use default VPC security groups
-  vpc_security_group_ids = [module.vpc.default_security_group_id]
+  # Use the appropriate public instance security group
+  vpc_security_group_ids = [aws_security_group.public-instance-sg.id]
   # Use first public subnet
   subnet_id = module.vpc.public_subnets[0]
 
@@ -125,7 +215,7 @@ module "ec2-2" {
   # Don't enable enhanced monitoring
   monitoring = false
   # Use the default VPC security group
-  vpc_security_group_ids = [module.vpc.default_security_group_id]
+  vpc_security_group_ids = [aws_security_group.private-instance-sg.id]
   # Use the first private subnet
   subnet_id = module.vpc.private_subnets[0]
 
@@ -146,8 +236,9 @@ module "alb" {
 
   # VPC/Networking setup
   vpc_id = module.vpc.vpc_id
-  subnets = [module.vpc.private_subnets[0]]
-  security_groups = [module.vpc.default_security_group_id]
+  subnets = module.vpc.public_subnets
+  security_groups = [aws_security_group.load-balancer-sg.id]
+
 
   # Target group to direct traffic
   target_groups = [
@@ -169,8 +260,8 @@ module "alb" {
   ]
 }
 
-# Have to manually define the target group attachment because the AWS ALB module does
-# not support target group attachment yet
+# Have to manually define the target group attachment because the AWS ALB module does not support
+# target group attachment yet
 resource "aws_lb_target_group_attachment" "lb-attach" {
   target_group_arn = module.alb.target_group_arns[0]
   target_id = module.ec2-2.id[0]
