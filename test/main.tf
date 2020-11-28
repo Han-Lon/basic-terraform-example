@@ -32,7 +32,7 @@ variable "public_ssh_key" {
 terraform {
   backend "s3" {
     bucket = "han-lon-terraform-states"
-    key = "basic-terraform-example/dev/initial"
+    key = "basic-terraform-example/test/initial"
     region = "us-east-2"
   }
 }
