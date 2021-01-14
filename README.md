@@ -1,3 +1,12 @@
+[//]: # "Cool Github integration tags courtesy of the BridgeCrew integration"
+[![Infrastructure Tests](https://www.bridgecrew.cloud/badges/github/han-lon/basic-terraform-example/hipaa)](https://www.bridgecrew.cloud/link/badge?vcs=github&fullRepo=Han-Lon%2Fbasic-terraform-example&benchmark=HIPAA)
+
+[![Infrastructure Tests](https://www.bridgecrew.cloud/badges/github/han-lon/basic-terraform-example/nist)](https://www.bridgecrew.cloud/link/badge?vcs=github&fullRepo=Han-Lon%2Fbasic-terraform-example&benchmark=NIST-800-53)
+
+[![Infrastructure Tests](https://www.bridgecrew.cloud/badges/github/han-lon/basic-terraform-example/pci)](https://www.bridgecrew.cloud/link/badge?vcs=github&fullRepo=Han-Lon%2Fbasic-terraform-example&benchmark=PCI-DSS+V3.2)
+
+[![Infrastructure Tests](https://www.bridgecrew.cloud/badges/github/han-lon/basic-terraform-example/general)](https://www.bridgecrew.cloud/link/badge?vcs=github&fullRepo=Han-Lon%2Fbasic-terraform-example&benchmark=INFRASTRUCTURE+SECURITY)
+
 # basic-terraform-example
 Launches a new VPC, 2 public subnets, 2 internal subnets, 2 EC2 instances running RedHat, and an ALB directing traffic to one instance
 
