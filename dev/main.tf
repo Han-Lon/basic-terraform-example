@@ -202,6 +202,28 @@ module "ec2-1" {
   }]
 }
 
+module "ec2-3" {
+  source = "terraform-aws-modules/ec2-instance/aws"
+
+  name = "${var.environment}-RHEL-instance-1"
+
+  # Use the most recent RHEL image
+  ami = data.aws_ami.redhat-ami.image_id
+  instance_type = "t2.micro"
+  key_name = module.key_pair.this_key_pair_key_name
+
+  # Don't enable enhanced monitoring
+  monitoring = false
+  # Use the appropriate public instance security group
+  vpc_security_group_ids = [aws_security_group.public-instance-sg.id]
+  # Use first public subnet
+  subnet_id = module.vpc.public_subnets[0]
+
+  root_block_device = [{
+    volume_size = 20
+  }]
+}
+
 # The second EC2 instance, which will be launched into the first private subnet
 module "ec2-2" {
   source = "terraform-aws-modules/ec2-instance/aws"
